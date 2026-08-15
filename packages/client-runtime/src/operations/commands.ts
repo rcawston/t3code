@@ -51,6 +51,7 @@ export type RespondToThreadApprovalInput = CommandInput<"thread.approval.respond
 export type RespondToThreadUserInputInput = CommandInput<"thread.user-input.respond">;
 export type RevertThreadCheckpointInput = CommandInput<"thread.checkpoint.revert">;
 export type StopThreadSessionInput = CommandInput<"thread.session.stop">;
+export type RespondToThreadProposalInput = CommandInput<"thread.proposal.respond">;
 
 type DispatchTag = typeof ORCHESTRATION_WS_METHODS.dispatchCommand;
 type CommandEffect = Effect.Effect<
@@ -139,6 +140,17 @@ export const deleteThread: (input: DeleteThreadInput) => CommandEffect = Effect.
     commandId: yield* commandId(input),
   });
 });
+
+export const respondToThreadProposal: (input: RespondToThreadProposalInput) => CommandEffect =
+  Effect.fn("EnvironmentCommands.respondToThreadProposal")(function* (input) {
+    const metadata = yield* timestampedCommandMetadata(input);
+    return yield* dispatch({
+      ...input,
+      type: "thread.proposal.respond",
+      commandId: metadata.commandId,
+      createdAt: metadata.createdAt,
+    });
+  });
 
 export const archiveThread: (input: ArchiveThreadInput) => CommandEffect = Effect.fn(
   "EnvironmentCommands.archiveThread",

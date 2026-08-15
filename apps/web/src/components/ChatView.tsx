@@ -284,6 +284,7 @@ import {
 } from "../state/entities";
 import { environmentShell } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
+import { ProposedThreadCard } from "./chat/ProposedThreadCard";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
 import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
@@ -7292,6 +7293,17 @@ function ChatViewContent(props: ChatViewProps) {
                   ) : (
                     <ComposerBannerStack className="relative z-0" items={composerBannerItems} />
                   )}
+                  {activeThread && (activeThread.proposedThreads ?? []).length > 0 ? (
+                    <div className="mx-auto mb-2 flex w-full max-w-3xl flex-col gap-2">
+                      {(activeThread.proposedThreads ?? []).map((proposal) => (
+                        <ProposedThreadCard
+                          key={proposal.threadId}
+                          environmentId={activeThread.environmentId}
+                          proposal={proposal}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
                   {threadSyncPhase && !activeEnvironmentUnavailable ? (
                     <ThreadSyncStatusPill phase={threadSyncPhase} />
                   ) : null}

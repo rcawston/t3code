@@ -28,6 +28,7 @@ import {
   type ProjectionThreadProposedPlan,
   ProjectionThreadProposedPlanRepository,
 } from "../../persistence/Services/ProjectionThreadProposedPlans.ts";
+import { ProjectionProposedThreadRepository } from "../../persistence/Services/ProjectionProposedThreads.ts";
 import { ProjectionThreadSessionRepository } from "../../persistence/Services/ProjectionThreadSessions.ts";
 import {
   type ProjectionTurn,
@@ -40,6 +41,7 @@ import { ProjectionStateRepositoryLive } from "../../persistence/Layers/Projecti
 import { ProjectionThreadActivityRepositoryLive } from "../../persistence/Layers/ProjectionThreadActivities.ts";
 import { ProjectionThreadMessageRepositoryLive } from "../../persistence/Layers/ProjectionThreadMessages.ts";
 import { ProjectionThreadProposedPlanRepositoryLive } from "../../persistence/Layers/ProjectionThreadProposedPlans.ts";
+import { ProjectionProposedThreadRepositoryLive } from "../../persistence/Layers/ProjectionProposedThreads.ts";
 import { ProjectionThreadSessionRepositoryLive } from "../../persistence/Layers/ProjectionThreadSessions.ts";
 import { ProjectionTurnRepositoryLive } from "../../persistence/Layers/ProjectionTurns.ts";
 import { ProjectionThreadRepositoryLive } from "../../persistence/Layers/ProjectionThreads.ts";
@@ -60,6 +62,7 @@ export const ORCHESTRATION_PROJECTOR_NAMES = {
   threads: "projection.threads",
   threadMessages: "projection.thread-messages",
   threadProposedPlans: "projection.thread-proposed-plans",
+  proposedThreads: "projection.proposed-threads",
   threadActivities: "projection.thread-activities",
   threadSessions: "projection.thread-sessions",
   threadTurns: "projection.thread-turns",
@@ -499,6 +502,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
     const projectionThreadRepository = yield* ProjectionThreadRepository;
     const projectionThreadMessageRepository = yield* ProjectionThreadMessageRepository;
     const projectionThreadProposedPlanRepository = yield* ProjectionThreadProposedPlanRepository;
+    const projectionProposedThreadRepository = yield* ProjectionProposedThreadRepository;
     const projectionThreadActivityRepository = yield* ProjectionThreadActivityRepository;
     const projectionThreadSessionRepository = yield* ProjectionThreadSessionRepository;
     const projectionTurnRepository = yield* ProjectionTurnRepository;
@@ -1139,6 +1143,39 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       }
     });
 
+    const applyProposedThreadsProjection: ProjectorDefinition["apply"] = Effect.fn(
+      "applyProposedThreadsProjection",
+    )(function* (event) {
+      switch (event.type) {
+        case "thread.proposed":
+          yield* projectionProposedThreadRepository.upsert({
+            threadId: event.payload.proposedThread.threadId,
+            sourceThreadId: event.payload.sourceThreadId,
+            projectId: event.payload.proposedThread.projectId,
+            sourceTitle: event.payload.proposedThread.sourceTitle,
+            title: event.payload.proposedThread.title,
+            message: event.payload.proposedThread.message,
+            modelSelection: event.payload.proposedThread.modelSelection,
+            runtimeMode: event.payload.proposedThread.runtimeMode,
+            interactionMode: event.payload.proposedThread.interactionMode,
+            createdAt: event.payload.proposedThread.createdAt,
+          });
+          return;
+        case "thread.proposal-dismissed":
+          yield* projectionProposedThreadRepository.deleteByThreadId({
+            threadId: event.payload.threadId,
+          });
+          return;
+        case "thread.deleted":
+          yield* projectionProposedThreadRepository.deleteBySourceThreadId({
+            sourceThreadId: event.payload.threadId,
+          });
+          return;
+        default:
+          return;
+      }
+    });
+
     const applyThreadActivitiesProjection: ProjectorDefinition["apply"] = Effect.fn(
       "applyThreadActivitiesProjection",
     )(function* (event, _attachmentSideEffects) {
@@ -1709,6 +1746,10 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         apply: applyThreadProposedPlansProjection,
       },
       {
+        name: ORCHESTRATION_PROJECTOR_NAMES.proposedThreads,
+        apply: applyProposedThreadsProjection,
+      },
+      {
         name: ORCHESTRATION_PROJECTOR_NAMES.threadActivities,
         apply: applyThreadActivitiesProjection,
       },
@@ -1831,6 +1872,7 @@ export const OrchestrationProjectionPipelineLive = Layer.effect(
   Layer.provideMerge(ProjectionThreadRepositoryLive),
   Layer.provideMerge(ProjectionThreadMessageRepositoryLive),
   Layer.provideMerge(ProjectionThreadProposedPlanRepositoryLive),
+  Layer.provideMerge(ProjectionProposedThreadRepositoryLive),
   Layer.provideMerge(ProjectionThreadActivityRepositoryLive),
   Layer.provideMerge(ProjectionThreadSessionRepositoryLive),
   Layer.provideMerge(ProjectionTurnRepositoryLive),

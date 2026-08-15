@@ -173,6 +173,10 @@ Read-only MCP tool that returns compact rows for active sibling threads in the i
 
 MCP tool that delivers a short text message to one sibling thread by stable T3 thread id. The handler and [decider.ts][8] both enforce same-project, active, non-self targets. Delivery is a `thread.turn.start` dispatched through the orchestration engine.
 
+#### thread_create
+
+MCP tool that asks T3 to start a sibling thread in the same project workspace. Manual mode records a proposed thread for the user to confirm or dismiss. Automatic mode creates and starts immediately. See [mcp.md][25].
+
 ## Practical Shortcuts
 
 - If you see `requested`, think "intent recorded".

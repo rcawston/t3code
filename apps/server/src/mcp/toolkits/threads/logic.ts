@@ -1,12 +1,13 @@
-import type {
-  OrchestrationReadModel,
-  OrchestrationShellSnapshot,
-  OrchestrationThread,
-  OrchestrationThreadShell,
-  ThreadId,
+import {
+  THREAD_COORDINATION_MAX_MESSAGE_CHARS,
+  type OrchestrationReadModel,
+  type OrchestrationShellSnapshot,
+  type OrchestrationThread,
+  type OrchestrationThreadShell,
+  type ThreadId,
 } from "@t3tools/contracts";
 
-export const THREAD_SEND_MAX_MESSAGE_CHARS = 8 * 1024;
+export const THREAD_SEND_MAX_MESSAGE_CHARS = THREAD_COORDINATION_MAX_MESSAGE_CHARS;
 export const THREAD_LIST_DEFAULT_LIMIT = 20;
 export const THREAD_LIST_MAX_LIMIT = 50;
 
@@ -40,6 +41,20 @@ export function validateThreadSendMessage(
     return { ok: false, reason: "oversized" };
   }
   return { ok: true, text: message };
+}
+
+export function formatThreadCreateEnvelope(input: {
+  readonly sourceThreadId: ThreadId;
+  readonly sourceTitle: string;
+  readonly message: string;
+}): string {
+  const title = input.sourceTitle.replace(/\s+/g, " ").trim() || "Untitled thread";
+  return [
+    `Started by T3 thread **${title}** (\`${input.sourceThreadId}\`) via T3 Code`,
+    `Reply using thread_send to \`${input.sourceThreadId}\` only if useful.`,
+    "",
+    input.message,
+  ].join("\n");
 }
 
 export function formatThreadSendEnvelope(input: {

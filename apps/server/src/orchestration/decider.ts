@@ -1,5 +1,6 @@
 import {
   EventId,
+  MessageId,
   type OrchestrationCommand,
   type OrchestrationEvent,
   type OrchestrationReadModel,
@@ -15,6 +16,9 @@ import {
   requireActiveProjectWorkspaceRootAbsent,
   requireProject,
   requireProjectAbsent,
+  requireCoordinationMessage,
+  requireProposedThread,
+  requireProposedThreadAbsent,
   requireThread,
   requireThreadArchived,
   requireThreadAbsent,
@@ -382,6 +386,156 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           updatedAt: command.createdAt,
         },
       };
+    }
+
+    case "thread.propose": {
+      const sourceThread = yield* requireThreadActive({
+        readModel,
+        command,
+        threadId: command.sourceThreadId,
+      });
+      yield* requireThreadAbsent({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      yield* requireProposedThreadAbsent({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      yield* requireCoordinationMessage({
+        commandType: command.type,
+        message: command.message,
+      });
+      if (command.title.trim().length === 0) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: "Proposed thread title is empty.",
+        });
+      }
+      return {
+        ...(yield* withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.sourceThreadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        })),
+        type: "thread.proposed",
+        payload: {
+          sourceThreadId: command.sourceThreadId,
+          proposedThread: {
+            threadId: command.threadId,
+            projectId: sourceThread.projectId,
+            sourceThreadId: command.sourceThreadId,
+            sourceTitle: sourceThread.title,
+            title: command.title,
+            message: command.message,
+            modelSelection: command.modelSelection,
+            runtimeMode: command.runtimeMode,
+            interactionMode: command.interactionMode,
+            createdAt: command.createdAt,
+          },
+        },
+      };
+    }
+
+    case "thread.proposal.respond": {
+      const found = yield* requireProposedThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      const dismissed = {
+        ...(yield* withEventBase({
+          aggregateKind: "thread",
+          aggregateId: found.source.id,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        })),
+        type: "thread.proposal-dismissed" as const,
+        payload: {
+          sourceThreadId: found.source.id,
+          threadId: command.threadId,
+        },
+      };
+      if (command.decision === "dismiss") {
+        return dismissed;
+      }
+      yield* requireProject({
+        readModel,
+        command,
+        projectId: found.proposal.projectId,
+      });
+      yield* requireThreadAbsent({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      const crypto = yield* Crypto.Crypto;
+      const messageId = yield* crypto.randomUUIDv4.pipe(
+        Effect.map((uuid) => MessageId.make(uuid)),
+        Effect.orDie,
+      );
+      const created = {
+        ...(yield* withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        })),
+        type: "thread.created" as const,
+        payload: {
+          threadId: command.threadId,
+          projectId: found.proposal.projectId,
+          title: found.proposal.title,
+          modelSelection: found.proposal.modelSelection,
+          runtimeMode: found.proposal.runtimeMode,
+          interactionMode: found.proposal.interactionMode,
+          branch: null,
+          worktreePath: null,
+          createdAt: command.createdAt,
+          updatedAt: command.createdAt,
+        },
+      };
+      const userMessage = {
+        ...(yield* withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        })),
+        type: "thread.message-sent" as const,
+        payload: {
+          threadId: command.threadId,
+          messageId,
+          role: "user" as const,
+          text: found.proposal.message,
+          attachments: [],
+          turnId: null,
+          streaming: false,
+          createdAt: command.createdAt,
+          updatedAt: command.createdAt,
+        },
+      };
+      const turnStart = {
+        ...(yield* withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        })),
+        causationEventId: userMessage.eventId,
+        type: "thread.turn-start-requested" as const,
+        payload: {
+          threadId: command.threadId,
+          messageId,
+          runtimeMode: found.proposal.runtimeMode,
+          interactionMode: found.proposal.interactionMode,
+          createdAt: command.createdAt,
+        },
+      };
+      return [dismissed, created, userMessage, turnStart];
     }
 
     case "thread.delete": {

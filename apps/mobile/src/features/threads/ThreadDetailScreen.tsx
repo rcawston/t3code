@@ -82,6 +82,7 @@ import {
   COMPOSER_TRANSITION_DURATION_MS,
   ThreadComposer,
 } from "./ThreadComposer";
+import { ProposedThreadCard } from "./ProposedThreadCard";
 import { ThreadFeed } from "./ThreadFeed";
 import type { ThreadContentPresentation } from "./threadContentPresentation";
 import { resolveThreadFeedSubmissionAnchor } from "./thread-feed-live-follow";
@@ -759,6 +760,17 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
               {/* Hidden (not unmounted) while a user-input request owns the
                 composer slot, so composer drafts and editor state survive. */}
               <View style={activeUserInputRequestId !== null ? { display: "none" } : undefined}>
+                {(props.selectedThread.proposedThreads ?? []).length > 0 ? (
+                  <View className="gap-2 px-3 pb-2">
+                    {(props.selectedThread.proposedThreads ?? []).map((proposal) => (
+                      <ProposedThreadCard
+                        key={proposal.threadId}
+                        environmentId={props.environmentId}
+                        proposal={proposal}
+                      />
+                    ))}
+                  </View>
+                ) : null}
                 <ThreadComposer
                   editorRef={composerEditorRef}
                   draftMessage={props.draftMessage}

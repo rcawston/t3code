@@ -147,6 +147,11 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/general",
   },
   {
+    id: "agent-thread-create",
+    title: "Agent thread create",
+    to: "/settings/general",
+  },
+  {
     id: "start-from-origin",
     title: "Start from origin",
     to: "/settings/general",

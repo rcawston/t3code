@@ -12,6 +12,7 @@ import { HttpBody, HttpClient, HttpRouter, HttpServerResponse } from "effect/uns
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery.ts";
+import { ServerSettingsService } from "../serverSettings.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as McpSessionRegistry from "./McpSessionRegistry.ts";
@@ -321,6 +322,7 @@ const ThreadsToolkitTestLayer = McpHttpServer.ThreadsToolkitRegistrationLive.pip
   Layer.provideMerge(McpServer.McpServer.layer),
   Layer.provide(Layer.succeed(ProjectionSnapshotQuery, unusedSnapshotQuery)),
   Layer.provide(Layer.succeed(OrchestrationEngineService, unusedEngine)),
+  Layer.provide(ServerSettingsService.layerTest()),
   Layer.provide(NodeServices.layer),
 );
 
@@ -336,6 +338,9 @@ it.effect("registers thread list and send tools next to preview", () =>
       const sendTool = server.tools.find(({ tool }) => tool.name === "thread_send");
       expect(sendTool?.tool.annotations?.readOnlyHint).toBe(false);
       expect(sendTool?.tool.annotations?.idempotentHint).toBe(false);
+
+      const createTool = server.tools.find(({ tool }) => tool.name === "thread_create");
+      expect(createTool?.tool.annotations?.readOnlyHint).toBe(false);
     }),
   ).pipe(Effect.provide(ThreadsToolkitTestLayer)),
 );
@@ -358,6 +363,7 @@ it.effect("rejects missing and revoked MCP credentials with 401", () =>
           Layer.provide(PreviewAutomationBroker.layer),
           Layer.provide(Layer.succeed(ProjectionSnapshotQuery, unusedSnapshotQuery)),
           Layer.provide(Layer.succeed(OrchestrationEngineService, unusedEngine)),
+          Layer.provide(ServerSettingsService.layerTest()),
           Layer.provide(NodeServices.layer),
         ),
         {

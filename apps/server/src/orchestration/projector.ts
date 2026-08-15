@@ -21,6 +21,8 @@ import {
   ThreadInteractionModeSetPayload,
   ThreadMetaUpdatedPayload,
   ThreadProposedPlanUpsertedPayload,
+  ThreadProposedPayload,
+  ThreadProposalDismissedPayload,
   ThreadRuntimeModeSetPayload,
   ThreadSettledPayload,
   ThreadPinnedPayload,
@@ -308,6 +310,8 @@ export function projectEvent(
             snoozedAt: null,
             deletedAt: null,
             messages: [],
+            proposedPlans: [],
+            proposedThreads: [],
             activities: [],
             checkpoints: [],
             session: null,
@@ -330,6 +334,7 @@ export function projectEvent(
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
             deletedAt: payload.deletedAt,
+            proposedThreads: [],
             updatedAt: payload.deletedAt,
           }),
         })),
@@ -622,6 +627,60 @@ export function projectEvent(
                       completedAt: session.updatedAt,
                     }
                   : thread.latestTurn,
+            updatedAt: event.occurredAt,
+          }),
+        };
+      });
+
+    case "thread.proposed":
+      return Effect.gen(function* () {
+        const payload = yield* decodeForEvent(
+          ThreadProposedPayload,
+          event.payload,
+          event.type,
+          "payload",
+        );
+        const thread = nextBase.threads.find((entry) => entry.id === payload.sourceThreadId);
+        if (!thread) {
+          return nextBase;
+        }
+        const proposedThreads = [
+          ...(thread.proposedThreads ?? []).filter(
+            (entry) => entry.threadId !== payload.proposedThread.threadId,
+          ),
+          payload.proposedThread,
+        ].toSorted(
+          (left, right) =>
+            left.createdAt.localeCompare(right.createdAt) ||
+            left.threadId.localeCompare(right.threadId),
+        );
+        return {
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.sourceThreadId, {
+            proposedThreads,
+            updatedAt: event.occurredAt,
+          }),
+        };
+      });
+
+    case "thread.proposal-dismissed":
+      return Effect.gen(function* () {
+        const payload = yield* decodeForEvent(
+          ThreadProposalDismissedPayload,
+          event.payload,
+          event.type,
+          "payload",
+        );
+        const thread = nextBase.threads.find((entry) => entry.id === payload.sourceThreadId);
+        if (!thread) {
+          return nextBase;
+        }
+        return {
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.sourceThreadId, {
+            proposedThreads: (thread.proposedThreads ?? []).filter(
+              (entry) => entry.threadId !== payload.threadId,
+            ),
             updatedAt: event.occurredAt,
           }),
         };
