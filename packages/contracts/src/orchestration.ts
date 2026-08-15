@@ -909,6 +909,9 @@ export const ThreadTurnStartCommand = Schema.Struct({
   ),
   bootstrap: Schema.optional(ThreadTurnStartBootstrap),
   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
+  // MCP thread_send only. Client command schemas omit this; the handler sets it
+  // from the bearer-bound source thread.
+  sourceThreadId: Schema.optional(ThreadId),
   createdAt: IsoDateTime,
 });
 

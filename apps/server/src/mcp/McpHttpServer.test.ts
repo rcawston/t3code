@@ -4,12 +4,17 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { EnvironmentId, PreviewTabId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import { McpProtocol, McpSchema, McpServer } from "effect/unstable/ai";
 import { HttpBody, HttpClient, HttpRouter, HttpServerResponse } from "effect/unstable/http";
 
+import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine.ts";
+import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
+import * as McpSessionRegistry from "./McpSessionRegistry.ts";
 import * as PreviewAutomationBroker from "./PreviewAutomationBroker.ts";
 
 const environmentId = EnvironmentId.make("environment-mcp-test");
@@ -285,4 +290,105 @@ it.effect("registers annotated tools and preserves authenticated request context
       }
     }),
   ).pipe(Effect.provide(TestLayer)),
+);
+
+const unusedSnapshotQuery = ProjectionSnapshotQuery.of({
+  getCommandReadModel: () => Effect.die("unused"),
+  getSnapshot: () => Effect.die("unused"),
+  getShellSnapshot: () => Effect.die("unused"),
+  getArchivedShellSnapshot: () => Effect.die("unused"),
+  getSnapshotSequence: () => Effect.die("unused"),
+  getCounts: () => Effect.die("unused"),
+  getActiveProjectByWorkspaceRoot: () => Effect.succeed(Option.none()),
+  getProjectShellById: () => Effect.succeed(Option.none()),
+  getFirstActiveThreadIdByProjectId: () => Effect.succeed(Option.none()),
+  getThreadCheckpointContext: () => Effect.succeed(Option.none()),
+  getFullThreadDiffContext: () => Effect.succeed(Option.none()),
+  getThreadShellById: () => Effect.succeed(Option.none()),
+  getThreadDetailById: () => Effect.succeed(Option.none()),
+  getThreadDetailSnapshot: () => Effect.succeed(Option.none()),
+  searchThreads: () => Effect.succeed({ matches: [] }),
+});
+
+const unusedEngine = OrchestrationEngineService.of({
+  dispatch: () => Effect.die("unused"),
+  readEvents: () => Stream.empty,
+  streamDomainEvents: Stream.empty,
+  latestSequence: Effect.succeed(0),
+});
+
+const ThreadsToolkitTestLayer = McpHttpServer.ThreadsToolkitRegistrationLive.pipe(
+  Layer.provideMerge(McpServer.McpServer.layer),
+  Layer.provide(Layer.succeed(ProjectionSnapshotQuery, unusedSnapshotQuery)),
+  Layer.provide(Layer.succeed(OrchestrationEngineService, unusedEngine)),
+  Layer.provide(NodeServices.layer),
+);
+
+it.effect("registers thread list and send tools next to preview", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const listTool = server.tools.find(({ tool }) => tool.name === "thread_list");
+      expect(listTool?.tool.annotations?.readOnlyHint).toBe(true);
+      expect(listTool?.tool.annotations?.destructiveHint).toBe(false);
+      expect(listTool?.tool.annotations?.idempotentHint).toBe(true);
+
+      const sendTool = server.tools.find(({ tool }) => tool.name === "thread_send");
+      expect(sendTool?.tool.annotations?.readOnlyHint).toBe(false);
+      expect(sendTool?.tool.annotations?.idempotentHint).toBe(false);
+    }),
+  ).pipe(Effect.provide(ThreadsToolkitTestLayer)),
+);
+
+const initializeBody = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"mcp-test","version":"1.0.0"}}}`;
+
+it.effect("rejects missing and revoked MCP credentials with 401", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const fakeEnvironment = ServerEnvironment.ServerEnvironment.of({
+        getEnvironmentId: Effect.succeed(environmentId),
+        getDescriptor: Effect.die("unused"),
+      });
+      const registry = yield* McpSessionRegistry.__testing
+        .make()
+        .pipe(Effect.provideService(ServerEnvironment.ServerEnvironment, fakeEnvironment));
+      yield* HttpRouter.serve(
+        McpHttpServer.layer.pipe(
+          Layer.provide(Layer.succeed(McpSessionRegistry.McpSessionRegistry, registry)),
+          Layer.provide(PreviewAutomationBroker.layer),
+          Layer.provide(Layer.succeed(ProjectionSnapshotQuery, unusedSnapshotQuery)),
+          Layer.provide(Layer.succeed(OrchestrationEngineService, unusedEngine)),
+          Layer.provide(NodeServices.layer),
+        ),
+        {
+          disableListenLog: true,
+          disableLogger: true,
+        },
+      ).pipe(Layer.build);
+
+      const httpClient = yield* HttpClient.HttpClient;
+      const missing = yield* httpClient.post("/mcp", {
+        headers: { accept: "application/json, text/event-stream" },
+        body: HttpBody.text(initializeBody, "application/json"),
+      });
+      expect(missing.status).toBe(401);
+      expect(yield* missing.json).toMatchObject({ error: "invalid_mcp_credential" });
+
+      const issued = yield* registry.issue({
+        threadId,
+        providerInstanceId: ProviderInstanceId.make("codex"),
+      });
+      const token = issued.config.authorizationHeader.replace(/^Bearer\s+/, "");
+      yield* registry.revokeThread(threadId);
+      const revoked = yield* httpClient.post("/mcp", {
+        headers: {
+          accept: "application/json, text/event-stream",
+          authorization: `Bearer ${token}`,
+        },
+        body: HttpBody.text(initializeBody, "application/json"),
+      });
+      expect(revoked.status).toBe(401);
+      expect(yield* revoked.json).toMatchObject({ error: "invalid_mcp_credential" });
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest.pipe(Layer.provideMerge(NodeServices.layer)))),
 );
