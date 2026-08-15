@@ -20,5 +20,9 @@ it("exports provider-compatible object schemas with described parameters", () =>
     expect(schema.oneOf, `${tool.name} must not export a root oneOf`).toBeUndefined();
     expect(schema.properties, `${tool.name} should declare object properties`).toBeTypeOf("object");
   }
-  expect(Object.keys(ThreadsToolkit.tools).toSorted()).toEqual(["thread_list", "thread_send"]);
+  expect(Object.keys(ThreadsToolkit.tools).toSorted()).toEqual([
+    "thread_create",
+    "thread_list",
+    "thread_send",
+  ]);
 });

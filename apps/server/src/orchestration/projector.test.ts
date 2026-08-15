@@ -96,11 +96,112 @@ describe("orchestration projector", () => {
         deletedAt: null,
         messages: [],
         proposedPlans: [],
+        proposedThreads: [],
         activities: [],
         checkpoints: [],
         session: null,
       },
     ]);
+  });
+
+  it("applies thread.proposed and thread.proposal-dismissed on the source thread", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    const later = "2026-01-01T00:00:01.000Z";
+    const created = await Effect.runPromise(
+      projectEvent(
+        createEmptyReadModel(now),
+        makeEvent({
+          sequence: 1,
+          type: "thread.created",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: now,
+          commandId: "cmd-thread-create",
+          payload: {
+            threadId: "thread-1",
+            projectId: "project-1",
+            title: "demo",
+            modelSelection: {
+              provider: ProviderDriverKind.make("codex"),
+              model: "gpt-5-codex",
+            },
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            branch: null,
+            worktreePath: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+        }),
+      ),
+    );
+    const proposed = await Effect.runPromise(
+      projectEvent(
+        created,
+        makeEvent({
+          sequence: 2,
+          type: "thread.proposed",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: later,
+          commandId: "cmd-propose",
+          payload: {
+            sourceThreadId: "thread-1",
+            proposedThread: {
+              threadId: "thread-new",
+              projectId: "project-1",
+              sourceThreadId: "thread-1",
+              sourceTitle: "demo",
+              title: "Pagination check",
+              message: "Please verify pagination.",
+              modelSelection: {
+                instanceId: "codex",
+                model: "gpt-5-codex",
+              },
+              runtimeMode: "full-access",
+              interactionMode: "default",
+              createdAt: later,
+            },
+          },
+        }),
+      ),
+    );
+    expect(proposed.threads[0]?.proposedThreads).toEqual([
+      {
+        threadId: "thread-new",
+        projectId: "project-1",
+        sourceThreadId: "thread-1",
+        sourceTitle: "demo",
+        title: "Pagination check",
+        message: "Please verify pagination.",
+        modelSelection: {
+          instanceId: "codex",
+          model: "gpt-5-codex",
+        },
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        createdAt: later,
+      },
+    ]);
+
+    const dismissed = await Effect.runPromise(
+      projectEvent(
+        proposed,
+        makeEvent({
+          sequence: 3,
+          type: "thread.proposal-dismissed",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: later,
+          commandId: "cmd-dismiss",
+          payload: {
+            sourceThreadId: "thread-1",
+            threadId: "thread-new",
+          },
+        }),
+      ),
+    );
+    expect(dismissed.threads[0]?.proposedThreads).toEqual([]);
   });
 
   it("fails when event payload cannot be decoded by runtime schema", async () => {

@@ -64,6 +64,9 @@ export function mergeEnvironmentThread(
     pinnedAt: shell.pinnedAt,
     pinOrderKey: shell.pinOrderKey,
     session: shell.session,
+    // Proposed sibling threads ride the shell stream so the chat tile stays in
+    // sync with the sidebar without expanding the detail-event set.
+    proposedThreads: shell.proposedThreads ?? detail.proposedThreads,
   };
 }
 

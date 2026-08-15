@@ -97,6 +97,7 @@ export function applyThreadDetailEvent(
           deletedAt: null,
           messages: [],
           proposedPlans: [],
+          proposedThreads: [],
           activities: [],
           checkpoints: [],
           session: null,
@@ -442,6 +443,42 @@ export function applyThreadDetailEvent(
               updatedAt: event.occurredAt,
             },
           };
+
+    case "thread.proposed": {
+      if (thread.id !== event.payload.sourceThreadId) {
+        return { kind: "unchanged" };
+      }
+      const proposedThreads = [
+        ...(thread.proposedThreads ?? []).filter(
+          (entry) => entry.threadId !== event.payload.proposedThread.threadId,
+        ),
+        event.payload.proposedThread,
+      ].toSorted(
+        (left, right) =>
+          left.createdAt.localeCompare(right.createdAt) ||
+          left.threadId.localeCompare(right.threadId),
+      );
+      return {
+        kind: "updated",
+        thread: { ...thread, proposedThreads, updatedAt: event.occurredAt },
+      };
+    }
+
+    case "thread.proposal-dismissed": {
+      if (thread.id !== event.payload.sourceThreadId) {
+        return { kind: "unchanged" };
+      }
+      return {
+        kind: "updated",
+        thread: {
+          ...thread,
+          proposedThreads: (thread.proposedThreads ?? []).filter(
+            (entry) => entry.threadId !== event.payload.threadId,
+          ),
+          updatedAt: event.occurredAt,
+        },
+      };
+    }
 
     // ── Proposed plans ──────────────────────────────────────────────
     case "thread.proposed-plan-upserted": {
