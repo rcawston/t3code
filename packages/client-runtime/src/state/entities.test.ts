@@ -229,6 +229,38 @@ describe("environment entity projections", () => {
     expect(merged?.messages).toBe(messages);
   });
 
+  it("takes proposed sibling threads from the shell", () => {
+    const proposal = {
+      threadId: ThreadId.make("thread-new"),
+      projectId: PROJECT_ID,
+      sourceThreadId: THREAD_ID,
+      sourceTitle: "Thread",
+      title: "Pagination check",
+      message: "Please verify pagination.",
+      modelSelection: THREAD_SHELL.modelSelection,
+      runtimeMode: "full-access" as const,
+      interactionMode: "default" as const,
+      createdAt: "2026-06-01T00:00:00.000Z",
+    };
+    const detail = {
+      ...THREAD_SHELL,
+      environmentId: ENVIRONMENT_ID,
+      deletedAt: null,
+      messages: [],
+      proposedPlans: [],
+      proposedThreads: [],
+      activities: [],
+      checkpoints: [],
+    } satisfies OrchestrationThread & { readonly environmentId: EnvironmentId };
+    const shell = {
+      ...THREAD_SHELL,
+      environmentId: ENVIRONMENT_ID,
+      proposedThreads: [proposal],
+    };
+
+    expect(mergeEnvironmentThread(detail, shell)?.proposedThreads).toEqual([proposal]);
+  });
+
   it("preserves untouched project and thread identities across unrelated shell updates", () => {
     const harness = makeHarness();
     const projectRefsAtom = harness.projects.environmentProjectRefsAtom(ENVIRONMENT_ID);

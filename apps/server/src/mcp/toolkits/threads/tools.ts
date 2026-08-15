@@ -1,4 +1,11 @@
-import { CommandId, IsoDateTime, MessageId, ThreadId } from "@t3tools/contracts";
+import {
+  CommandId,
+  IsoDateTime,
+  MessageId,
+  ProviderInstanceId,
+  ThreadId,
+  TrimmedNonEmptyString,
+} from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/unstable/ai";
@@ -6,12 +13,14 @@ import { Tool, Toolkit } from "effect/unstable/ai";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import { OrchestrationEngineService } from "../../../orchestration/Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "../../../orchestration/Services/ProjectionSnapshotQuery.ts";
+import { ServerSettingsService } from "../../../serverSettings.ts";
 import { THREAD_LIST_MAX_LIMIT, THREAD_SEND_MAX_MESSAGE_CHARS } from "./logic.ts";
 
 const dependencies = [
   McpInvocationContext.McpInvocationContext,
   OrchestrationEngineService,
   ProjectionSnapshotQuery,
+  ServerSettingsService,
   Crypto.Crypto,
 ];
 
@@ -77,10 +86,35 @@ export class ThreadSendRejectedError extends Schema.TaggedErrorClass<ThreadSendR
   }
 }
 
+export const ThreadCreateInput = Schema.Struct({
+  title: TrimmedNonEmptyString.annotate({
+    description: "Title for the new sibling thread.",
+  }),
+  message: Schema.String.annotate({
+    description: `First user message for the new thread, at most ${THREAD_SEND_MAX_MESSAGE_CHARS} characters.`,
+  }),
+  instanceId: Schema.optional(
+    ProviderInstanceId.annotate({
+      description: "Optional provider instance id. Omit to inherit the source thread's model.",
+    }),
+  ),
+  model: Schema.optional(
+    TrimmedNonEmptyString.annotate({
+      description: "Optional model id. Omit to inherit the source thread's model.",
+    }),
+  ),
+});
+
+export const ThreadCreateResult = Schema.Struct({
+  threadId: ThreadId,
+  title: Schema.String,
+  mode: Schema.Literals(["started", "proposed"]),
+});
+
 export class ThreadToolkitQueryError extends Schema.TaggedErrorClass<ThreadToolkitQueryError>()(
   "ThreadToolkitQueryError",
   {
-    operation: Schema.Literals(["list", "send"]),
+    operation: Schema.Literals(["list", "send", "create"]),
     detail: Schema.String,
   },
 ) {
@@ -108,6 +142,19 @@ export const ThreadListTool = Tool.make("thread_list", {
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true);
 
+export const ThreadCreateTool = Tool.make("thread_create", {
+  description:
+    "Create a sibling thread in this project workspace. Inherits the current thread's project, runtime mode, and interaction mode. Does not create a worktree. Depending on the server setting, T3 either starts the new thread immediately or shows the user a confirm/dismiss tile. Returns the reserved thread id and whether the thread was started or only proposed. Do not wait for the new thread to finish.",
+  parameters: ThreadCreateInput,
+  success: ThreadCreateResult,
+  failure: ThreadToolkitError,
+  dependencies,
+})
+  .annotate(Tool.Title, "Create sibling thread")
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, false);
+
 export const ThreadSendTool = Tool.make("thread_send", {
   description:
     "Send a short text message to one existing sibling thread in this project, addressed by its stable T3 thread id from thread_list. T3 attributes the sender and starts or steers the target through the ordinary turn path. Returns an acceptance receipt after the target turn is durably requested; it does not wait for or return the target transcript. Do not invent a from-id. Reply with thread_send only if useful.",
@@ -121,4 +168,4 @@ export const ThreadSendTool = Tool.make("thread_send", {
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, false);
 
-export const ThreadsToolkit = Toolkit.make(ThreadListTool, ThreadSendTool);
+export const ThreadsToolkit = Toolkit.make(ThreadListTool, ThreadSendTool, ThreadCreateTool);

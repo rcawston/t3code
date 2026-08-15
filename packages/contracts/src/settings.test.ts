@@ -177,6 +177,18 @@ describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
   });
 });
 
+describe("ServerSettings thread create mode", () => {
+  it("defaults to manual for legacy configs", () => {
+    expect(decodeServerSettings({}).threadCreateMode).toBe("manual");
+  });
+
+  it("accepts automatic updates", () => {
+    expect(decodeServerSettingsPatch({ threadCreateMode: "automatic" }).threadCreateMode).toBe(
+      "automatic",
+    );
+  });
+});
+
 describe("ServerSettings worktree defaults", () => {
   it("defaults start-from-origin on for legacy configs", () => {
     expect(decodeServerSettings({}).newWorktreesStartFromOrigin).toBe(true);

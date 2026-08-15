@@ -19,8 +19,10 @@ import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
+import { OrchestrationCommandInvariantError } from "../../../orchestration/Errors.ts";
 import { OrchestrationEngineService } from "../../../orchestration/Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "../../../orchestration/Services/ProjectionSnapshotQuery.ts";
+import { ServerSettingsService } from "../../../serverSettings.ts";
 import { ThreadsToolkitHandlersLive } from "./handlers.ts";
 import {
   THREAD_SEND_MAX_MESSAGE_CHARS,
@@ -54,6 +56,7 @@ const makeShell = (
   hasPendingApprovals: false,
   hasPendingUserInput: false,
   hasActionableProposedPlan: false,
+  proposedThreads: [],
   ...input,
 });
 
@@ -74,6 +77,7 @@ const makeThread = (
   deletedAt: null,
   messages: [],
   proposedPlans: [],
+  proposedThreads: [],
   activities: [],
   checkpoints: [],
   session: null,
@@ -297,12 +301,14 @@ const makeEngine = (dispatched: Array<OrchestrationCommand>) =>
   });
 
 const runTool = (
-  name: "thread_list" | "thread_send",
+  name: "thread_list" | "thread_send" | "thread_create",
   params: Record<string, unknown>,
   input: {
     readonly invocation?: McpInvocationContext.McpInvocationScope;
     readonly dispatched?: Array<OrchestrationCommand>;
     readonly query?: ReturnType<typeof makeQuery>;
+    readonly settings?: { readonly threadCreateMode?: "manual" | "automatic" };
+    readonly engine?: ReturnType<typeof OrchestrationEngineService.of>;
   } = {},
 ) =>
   Effect.gen(function* () {
@@ -318,7 +324,15 @@ const runTool = (
       ThreadsToolkitHandlersLive.pipe(
         Layer.provideMerge(Layer.succeed(ProjectionSnapshotQuery, input.query ?? makeQuery({}))),
         Layer.provideMerge(
-          Layer.succeed(OrchestrationEngineService, makeEngine(input.dispatched ?? [])),
+          Layer.succeed(
+            OrchestrationEngineService,
+            input.engine ?? makeEngine(input.dispatched ?? []),
+          ),
+        ),
+        Layer.provideMerge(
+          ServerSettingsService.layerTest({
+            threadCreateMode: input.settings?.threadCreateMode ?? "manual",
+          }),
         ),
         Layer.provideMerge(NodeServices.layer),
       ),
@@ -494,5 +508,121 @@ it.effect("rejects a credential that does not grant threads", () =>
       },
     ).pipe(Effect.flip);
     expect(error).toBeInstanceOf(McpInvocationContext.McpCapabilityUnavailableError);
+  }),
+);
+
+it.effect("proposes a sibling thread when create mode is manual", () =>
+  Effect.gen(function* () {
+    const dispatched: Array<OrchestrationCommand> = [];
+    const result = yield* runTool(
+      "thread_create",
+      { title: "Pagination check", message: "Please verify pagination." },
+      { dispatched },
+    );
+    expect(result.encodedResult).toMatchObject({
+      title: "Pagination check",
+      mode: "proposed",
+    });
+    expect(dispatched.map((command) => command.type)).toEqual(["thread.propose"]);
+    const propose = dispatched[0];
+    if (propose?.type !== "thread.propose") {
+      throw new Error("expected thread.propose");
+    }
+    expect(propose.sourceThreadId).toBe(ThreadId.make("thread-self"));
+    expect(propose.message).toContain("Started by T3 thread **API review**");
+  }),
+);
+
+it.effect("creates and starts a sibling thread when create mode is automatic", () =>
+  Effect.gen(function* () {
+    const dispatched: Array<OrchestrationCommand> = [];
+    const result = yield* runTool(
+      "thread_create",
+      { title: "Pagination check", message: "Please verify pagination." },
+      { dispatched, settings: { threadCreateMode: "automatic" } },
+    );
+    expect(result.encodedResult).toMatchObject({
+      title: "Pagination check",
+      mode: "started",
+    });
+    expect(dispatched.map((command) => command.type)).toEqual([
+      "thread.create",
+      "thread.turn.start",
+    ]);
+    const created = dispatched[0];
+    if (created?.type !== "thread.create") {
+      throw new Error("expected thread.create");
+    }
+    expect(created.worktreePath).toBeNull();
+    expect(created.projectId).toBe(ProjectId.make("project-a"));
+  }),
+);
+
+it.effect("rejects blank and oversized create messages before dispatch", () =>
+  Effect.gen(function* () {
+    const dispatched: Array<OrchestrationCommand> = [];
+    const blank = yield* runTool(
+      "thread_create",
+      { title: "Pagination check", message: "  " },
+      { dispatched },
+    ).pipe(Effect.flip);
+    expect(blank).toMatchObject({ reason: "blank" });
+
+    const oversized = yield* runTool(
+      "thread_create",
+      {
+        title: "Pagination check",
+        message: "x".repeat(THREAD_SEND_MAX_MESSAGE_CHARS + 1),
+      },
+      { dispatched },
+    ).pipe(Effect.flip);
+    expect(oversized).toMatchObject({ reason: "oversized" });
+    expect(dispatched).toEqual([]);
+  }),
+);
+
+it.effect("fails closed in manual mode when the proposal cannot be persisted", () =>
+  Effect.gen(function* () {
+    const error = yield* runTool(
+      "thread_create",
+      { title: "Pagination check", message: "Please verify pagination." },
+      {
+        engine: OrchestrationEngineService.of({
+          dispatch: () =>
+            Effect.fail(
+              new OrchestrationCommandInvariantError({
+                commandType: "thread.propose",
+                detail: "Proposed thread could not be persisted.",
+              }),
+            ),
+          readEvents: () => Stream.empty,
+          streamDomainEvents: Stream.empty,
+          latestSequence: Effect.succeed(0),
+        }),
+      },
+    ).pipe(Effect.flip);
+    expect(error).toBeInstanceOf(ThreadSendRejectedError);
+    expect(error).toMatchObject({ detail: "Proposed thread could not be persisted." });
+  }),
+);
+
+it.effect("honors a later threadCreateMode change on the next create call", () =>
+  Effect.gen(function* () {
+    const first: Array<OrchestrationCommand> = [];
+    const proposed = yield* runTool(
+      "thread_create",
+      { title: "Pagination check", message: "Please verify pagination." },
+      { dispatched: first, settings: { threadCreateMode: "manual" } },
+    );
+    expect(proposed.encodedResult).toMatchObject({ mode: "proposed" });
+
+    const second: Array<OrchestrationCommand> = [];
+    const started = yield* runTool(
+      "thread_create",
+      { title: "Pagination check", message: "Please verify pagination." },
+      { dispatched: second, settings: { threadCreateMode: "automatic" } },
+    );
+    expect(started.encodedResult).toMatchObject({ mode: "started" });
+    expect(second.map((command) => command.type)).toEqual(["thread.create", "thread.turn.start"]);
   }),
 );

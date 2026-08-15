@@ -43,6 +43,22 @@ If the target is idle or stopped, ordinary `thread.turn.start` starts it through
 [`ProviderCommandReactor`][reactor]. If it is already running, delivery uses the existing
 steering path. There is no second send path and no call to `ProviderService.sendTurn`.
 
+### `thread_create`
+
+Create is still MCP-visible orchestration, not a new provider runtime. The tool inherits project,
+runtime mode, and interaction mode from the source thread and never invents a worktree.
+
+`threadCreateMode` on server settings chooses the path:
+
+- `automatic` dispatches `thread.create` then `thread.turn.start`.
+- `manual` (default) dispatches internal `thread.propose`. The human confirms or dismisses with
+  client-dispatchable `thread.proposal.respond`. Confirm emits dismiss + create + turn start.
+  Manual mode fails closed: if the proposal cannot be persisted, the tool fails instead of
+  creating a session.
+
+Proposed threads live on the source thread (`proposedThreads`) and ride the existing
+`thread-upserted` shell stream.
+
 ## Related
 
 - [Architecture overview](./overview.md)

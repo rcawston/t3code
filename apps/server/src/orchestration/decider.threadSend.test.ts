@@ -42,6 +42,7 @@ function makeThread(input: {
     deletedAt: input.deletedAt ?? null,
     messages: [],
     proposedPlans: [],
+    proposedThreads: [],
     activities: [],
     checkpoints: [],
     session: null,

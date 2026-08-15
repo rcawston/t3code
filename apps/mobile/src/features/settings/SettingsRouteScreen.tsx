@@ -35,6 +35,9 @@ import { WorkspaceSidebarToolbar } from "../layout/workspace-sidebar-toolbar";
 import { runtime } from "../../lib/runtime";
 import { useThemeColor } from "../../lib/useThemeColor";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import { useServerConfigs } from "../../state/entities";
+import { serverEnvironment } from "../../state/server";
+import { useAtomCommand } from "../../state/use-atom-command";
 import { useThreadListV2Enabled } from "../threads/use-thread-list-v2-enabled";
 import {
   type AppUpdateCheckState,
@@ -533,6 +536,13 @@ function GeneralSettingsSection() {
   const autoSettleOnMerge =
     !AsyncResult.isSuccess(preferencesResult) ||
     preferencesResult.value.autoSettleOnMerge !== false;
+  const serverConfigs = useServerConfigs();
+  const updateSettings = useAtomCommand(serverEnvironment.updateSettings, {
+    reportFailure: false,
+  });
+  const connectedConfigs = useMemo(() => [...serverConfigs.entries()], [serverConfigs]);
+  const threadCreateMode =
+    connectedConfigs[0]?.[1].settings.threadCreateMode === "automatic" ? "automatic" : "manual";
 
   return (
     <SettingsSection title="General">
@@ -543,6 +553,44 @@ function GeneralSettingsSection() {
         value={autoSettleOnMerge}
         onValueChange={(value) => savePreferences({ autoSettleOnMerge: value })}
       />
+      {connectedConfigs.length > 0 ? (
+        <SettingsRow
+          icon="plus"
+          label="Agent thread create"
+          value={threadCreateMode === "automatic" ? "Automatic" : "Manual"}
+          onPress={() => {
+            Alert.alert(
+              "Agent thread create",
+              "When an agent asks to start a sibling thread, either wait for you to confirm or start it immediately.",
+              [
+                {
+                  text: "Manual",
+                  onPress: () => {
+                    for (const [environmentId] of connectedConfigs) {
+                      void updateSettings({
+                        environmentId,
+                        input: { patch: { threadCreateMode: "manual" } },
+                      });
+                    }
+                  },
+                },
+                {
+                  text: "Automatic",
+                  onPress: () => {
+                    for (const [environmentId] of connectedConfigs) {
+                      void updateSettings({
+                        environmentId,
+                        input: { patch: { threadCreateMode: "automatic" } },
+                      });
+                    }
+                  },
+                },
+                { text: "Cancel", style: "cancel" },
+              ],
+            );
+          }}
+        />
+      ) : null}
       <SettingsRow icon="chart.bar.xaxis" label="Usage" target="SettingsUsage" />
     </SettingsSection>
   );

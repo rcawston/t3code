@@ -14,3 +14,17 @@ Archived threads do not appear in the list and cannot be used as a target.
 
 If the target thread is idle or stopped, T3 Code starts it. If it is already working, the message
 follows the same steering path as a message you send from the composer.
+
+## Create a sibling thread
+
+An agent can also ask T3 Code to start a new thread in the same project. The new thread always
+uses the project workspace. It does not create a worktree.
+
+Open **Settings → General → Agent thread create** to choose what happens:
+
+- **Manual** (default): T3 Code shows a tile with the title, a preview of the first message, and
+  the source thread. Confirm starts the new thread. Dismiss drops the request.
+- **Automatic**: T3 Code creates the thread and starts it immediately.
+
+The same setting and tile appear on web, desktop, and mobile. Changing the setting applies to the
+next create request.
