@@ -11,6 +11,7 @@ This is a living glossary for T3 Code. It explains what common terms mean in thi
 - [Orchestration](#orchestration)
 - [Provider runtime](#provider-runtime)
 - [Checkpointing](#checkpointing)
+- [Native MCP](#native-mcp)
 
 ## Concepts
 
@@ -140,6 +141,18 @@ The patch difference between two checkpoints. Query logic lives in [CheckpointDi
 
 The file patch and changed-file summary for one turn. It is usually computed in [CheckpointDiffQuery.ts][20], represented in [the contracts][1], and recorded into thread state by [projector.ts][4].
 
+### Native MCP
+
+The first-party MCP server at `/mcp`, injected into every provider session. See [mcp.md][25].
+
+#### thread_list
+
+Read-only MCP tool that returns compact rows for active sibling threads in the invoking thread's project. Implemented in the threads toolkit and backed by the shell snapshot, not by another thread's transcript.
+
+#### thread_send
+
+MCP tool that delivers a short text message to one sibling thread by stable T3 thread id. The handler and [decider.ts][8] both enforce same-project, active, non-self targets. Delivery is a `thread.turn.start` dispatched through the orchestration engine.
+
 ## Practical Shortcuts
 
 - If you see `requested`, think "intent recorded".
@@ -179,3 +192,4 @@ The file patch and changed-file summary for one turn. It is usually computed in 
 [22]: ../../apps/server/src/checkpointing/Utils.ts
 [23]: ../../apps/server/src/checkpointing/Diffs.ts
 [24]: ./overview.md
+[25]: ./mcp.md
