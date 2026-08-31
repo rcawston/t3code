@@ -246,6 +246,7 @@ const unusedQuery = {
   getSnapshot: () => Effect.die("unused"),
   getSnapshotSequence: () => Effect.die("unused"),
   getCounts: () => Effect.die("unused"),
+  getEventReplayStats: () => Effect.die("unused"),
   getActiveProjectByWorkspaceRoot: () => Effect.succeed(Option.none()),
   getProjectShellById: () => Effect.succeed(Option.none()),
   getFirstActiveThreadIdByProjectId: () => Effect.succeed(Option.none()),
