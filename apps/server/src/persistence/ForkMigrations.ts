@@ -3,6 +3,7 @@ import * as Migrator from "effect/unstable/sql/Migrator";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import ProjectionProposedThreads from "./ForkMigrations/001_ProjectionProposedThreads.ts";
+import AuthSessionClientConnection from "./Migrations/041_AuthSessionClientConnection.ts";
 
 const CORE_MIGRATIONS_TABLE = "effect_sql_migrations";
 const FORK_MIGRATIONS_TABLE = "t3_fork_migrations";
@@ -39,11 +40,16 @@ export const reconcileLegacyForkMigrationHistory = Effect.fn("reconcileLegacyFor
           SELECT migration_id, name
           FROM effect_sql_migrations
           WHERE
-            (migration_id = 43 AND name = 'ProjectionProposedThreads')
+            (migration_id = 41 AND name = 'ProjectionProposedThreads')
+            OR (migration_id = 43 AND name = 'ProjectionProposedThreads')
             OR (migration_id = 44 AND name = 'ProjectionProposedThreads')
         `;
         if (legacyEntries.length === 0) {
           return;
+        }
+
+        if (legacyEntries.some(({ migration_id }) => migration_id === 41)) {
+          yield* AuthSessionClientConnection;
         }
 
         const projectionTables = yield* sql<{ readonly name: string }>`
@@ -63,6 +69,11 @@ export const reconcileLegacyForkMigrationHistory = Effect.fn("reconcileLegacyFor
           }
         }
 
+        yield* sql`
+          UPDATE effect_sql_migrations
+          SET name = 'AuthSessionClientConnection'
+          WHERE migration_id = 41 AND name = 'ProjectionProposedThreads'
+        `;
         yield* sql`
           UPDATE effect_sql_migrations
           SET name = 'ProjectionThreadsUnsettledAt'

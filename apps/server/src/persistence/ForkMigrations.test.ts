@@ -7,9 +7,9 @@ import ProjectionProposedThreads from "./ForkMigrations/001_ProjectionProposedTh
 import { runMigrations } from "./Migrations.ts";
 import * as NodeSqliteClient from "./NodeSqliteClient.ts";
 
-const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
+const legacySlots43And44Layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
-layer("fork migrations", (it) => {
+legacySlots43And44Layer("fork migrations", (it) => {
   it.effect("repairs legacy core slots and moves fork migrations to their own ledger", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -40,6 +40,61 @@ layer("fork migrations", (it) => {
         ORDER BY migration_id
       `;
       assert.deepStrictEqual(coreEntries, [
+        { migration_id: 43, name: "ProjectionThreadsUnsettledAt" },
+      ]);
+
+      const forkEntries = yield* sql<{
+        readonly migration_id: number;
+        readonly name: string;
+      }>`
+        SELECT migration_id, name
+        FROM t3_fork_migrations
+        ORDER BY migration_id
+      `;
+      assert.deepStrictEqual(forkEntries, [{ migration_id: 1, name: "ProjectionProposedThreads" }]);
+    }),
+  );
+});
+
+const legacySlots41And44Layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
+
+legacySlots41And44Layer("fork migrations from legacy slot 41", (it) => {
+  it.effect("repairs skipped auth-session metadata columns and frees the core ledger", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+
+      yield* runMigrations({ toMigrationInclusive: 40 });
+      yield* ProjectionProposedThreads;
+      yield* sql`
+        INSERT INTO effect_sql_migrations (migration_id, name)
+        VALUES (41, 'ProjectionProposedThreads')
+      `;
+      yield* runMigrations({ toMigrationInclusive: 43 });
+      yield* sql`
+        INSERT INTO effect_sql_migrations (migration_id, name)
+        VALUES (44, 'ProjectionProposedThreads')
+      `;
+
+      yield* runMigrations();
+
+      const authSessionColumns = yield* sql<{ readonly name: string }>`
+        PRAGMA table_info(auth_sessions)
+      `;
+      assert.ok(authSessionColumns.some((column) => column.name === "client_surface"));
+      assert.ok(authSessionColumns.some((column) => column.name === "client_app_version"));
+
+      const coreEntries = yield* sql<{
+        readonly migration_id: number;
+        readonly name: string;
+      }>`
+        SELECT migration_id, name
+        FROM effect_sql_migrations
+        WHERE migration_id >= 41
+        ORDER BY migration_id
+      `;
+      assert.deepStrictEqual(coreEntries, [
+        { migration_id: 41, name: "AuthSessionClientConnection" },
+        { migration_id: 42, name: "ProjectionThreadLinkedPullRequest" },
         { migration_id: 43, name: "ProjectionThreadsUnsettledAt" },
       ]);
 

@@ -61,7 +61,7 @@ Proposed threads live on the source thread (`proposedThreads`) and ride the exis
 
 The proposal table is a fork-owned schema extension. Its migrations use the separate
 `t3_fork_migrations` ledger so fork releases cannot consume or skip numbered upstream migration
-slots. Startup reconciles the earlier fork builds that recorded this table at upstream slots 43
+slots. Startup reconciles earlier fork builds that recorded this table at upstream slots 41, 43,
 or 44 before running either ledger.
 
 ## Related
