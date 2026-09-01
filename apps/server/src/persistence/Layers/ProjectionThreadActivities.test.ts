@@ -82,4 +82,56 @@ layer("ProjectionThreadActivityRepository", (it) => {
       assert.equal(yield* repository.countPendingUserInputs({ threadId }), 1);
     }),
   );
+
+  it.effect("reads only the latest matching task activity", () =>
+    Effect.gen(function* () {
+      const repository = yield* ProjectionThreadActivityRepository;
+      const sql = yield* SqlClient.SqlClient;
+      const threadId = ThreadId.make("thread-latest-task-activity");
+
+      yield* sql`
+        INSERT INTO projection_thread_activities (
+          activity_id, thread_id, turn_id, tone, kind, summary, payload_json, sequence, created_at
+        )
+        VALUES
+          (
+            'activity-task-unrelated-tool', ${threadId}, NULL, 'tool', 'tool.completed',
+            'large tool output', 'not-json', 1, '2026-03-01T00:00:00.000Z'
+          ),
+          (
+            'activity-task-started', ${threadId}, NULL, 'info', 'task.started',
+            'started', '{"taskId":"task-1","title":"Initial title"}', 2,
+            '2026-03-01T00:00:01.000Z'
+          ),
+          (
+            'activity-task-progress', ${threadId}, NULL, 'info', 'task.progress',
+            'progress', '{"taskId":"task-1","title":"Updated title"}', 3,
+            '2026-03-01T00:00:02.000Z'
+          ),
+          (
+            'activity-task-other', ${threadId}, NULL, 'info', 'task.progress',
+            'other', '{"taskId":"task-2","title":"Other title"}', 4,
+            '2026-03-01T00:00:03.000Z'
+          )
+      `;
+
+      const activity = yield* repository.getLatestTaskActivity({
+        threadId,
+        taskId: "task-1",
+      });
+      assert.equal(activity._tag, "Some");
+      if (activity._tag === "Some") {
+        assert.equal(activity.value.activityId, EventId.make("activity-task-progress"));
+        assert.deepEqual(activity.value.payload, {
+          taskId: "task-1",
+          title: "Updated title",
+        });
+      }
+
+      assert.equal(
+        (yield* repository.getLatestTaskActivity({ threadId, taskId: "missing" }))._tag,
+        "None",
+      );
+    }),
+  );
 });
