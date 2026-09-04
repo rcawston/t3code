@@ -160,6 +160,7 @@ already dispatch.
 - [Remote environments](./remote.md), [Server updates](./server-updates.md)
 - [Resource telemetry](./resource-telemetry.md)
 - [Product analytics](./product-analytics.md)
+- [Native MCP server](./mcp.md)
 - [Scripts](./scripts.md), [CI gates](./ci.md)
 
 [rpc]: ../../packages/contracts/src/rpc.ts

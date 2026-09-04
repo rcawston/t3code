@@ -12,6 +12,7 @@ This is a living glossary for T3 Code. It explains what common terms mean in thi
 - [Provider runtime](#provider-runtime)
 - [Checkpointing](#checkpointing)
 - [Appearance](#appearance)
+- [Native MCP](#native-mcp)
 
 ## Concepts
 
@@ -168,6 +169,18 @@ theme a user picks in Settings afterwards sticks until the next set; mobile keep
 appearance settings. Naming a published [environment theme](#environment-theme) is how a desktop
 ships T3 Code already matching it.
 
+### Native MCP
+
+The first-party MCP server at `/mcp`, injected into every provider session. See [mcp.md][27].
+
+#### thread_list
+
+Read-only MCP tool that returns compact rows for active sibling threads in the invoking thread's project. Implemented in the threads toolkit and backed by the shell snapshot, not by another thread's transcript.
+
+#### thread_send
+
+MCP tool that delivers a short text message to one sibling thread by stable T3 thread id. The handler and [decider.ts][8] both enforce same-project, active, non-self targets. Delivery is a `thread.turn.start` dispatched through the orchestration engine.
+
 ## Practical Shortcuts
 
 - If you see `requested`, think "intent recorded".
@@ -209,3 +222,4 @@ ships T3 Code already matching it.
 [24]: ./overview.md
 [25]: ../../apps/server/src/environmentTheme.ts
 [26]: ../user/environment-theme.md
+[27]: ./mcp.md

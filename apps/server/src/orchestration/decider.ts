@@ -29,6 +29,7 @@ import {
   requireThread,
   requireThreadArchived,
   requireThreadAbsent,
+  requireThreadActive,
   requireThreadNotArchived,
 } from "./commandInvariants.ts";
 import { projectEvent } from "./projector.ts";
@@ -910,6 +911,30 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      if (command.sourceThreadId !== undefined) {
+        if (command.sourceThreadId === command.threadId) {
+          return yield* new OrchestrationCommandInvariantError({
+            commandType: command.type,
+            detail: `Thread '${command.threadId}' cannot send a peer message to itself.`,
+          });
+        }
+        const sourceThread = yield* requireThreadActive({
+          readModel,
+          command,
+          threadId: command.sourceThreadId,
+        });
+        yield* requireThreadActive({
+          readModel,
+          command,
+          threadId: command.threadId,
+        });
+        if (sourceThread.projectId !== targetThread.projectId) {
+          return yield* new OrchestrationCommandInvariantError({
+            commandType: command.type,
+            detail: `Peer message source thread '${sourceThread.id}' is not in the same project as target thread '${targetThread.id}'.`,
+          });
+        }
+      }
       const sourceProposedPlan = command.sourceProposedPlan;
       const sourceThread = sourceProposedPlan
         ? yield* requireThread({
