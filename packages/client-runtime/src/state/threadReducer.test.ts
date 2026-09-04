@@ -757,6 +757,81 @@ describe("applyThreadDetailEvent", () => {
     });
   });
 
+  describe("thread.proposed", () => {
+    it("records a proposed sibling on the source thread", () => {
+      const result = applyThreadDetailEvent(baseThread, {
+        ...baseEventFields,
+        sequence: 11,
+        occurredAt: "2026-04-01T10:00:00.000Z",
+        aggregateKind: "thread",
+        aggregateId: ThreadId.make("thread-1"),
+        type: "thread.proposed",
+        payload: {
+          sourceThreadId: ThreadId.make("thread-1"),
+          proposedThread: {
+            threadId: ThreadId.make("thread-new"),
+            projectId: ProjectId.make("project-1"),
+            sourceThreadId: ThreadId.make("thread-1"),
+            sourceTitle: "Test Thread",
+            title: "Pagination check",
+            message: "Please verify pagination.",
+            modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            createdAt: "2026-04-01T10:00:00.000Z",
+          },
+        },
+      });
+
+      expect(result.kind).toBe("updated");
+      if (result.kind === "updated") {
+        expect(result.thread.proposedThreads).toHaveLength(1);
+        expect(result.thread.proposedThreads?.[0]?.title).toBe("Pagination check");
+      }
+    });
+  });
+
+  describe("thread.proposal-dismissed", () => {
+    it("removes a proposed sibling", () => {
+      const result = applyThreadDetailEvent(
+        {
+          ...baseThread,
+          proposedThreads: [
+            {
+              threadId: ThreadId.make("thread-new"),
+              projectId: ProjectId.make("project-1"),
+              sourceThreadId: ThreadId.make("thread-1"),
+              sourceTitle: "Test Thread",
+              title: "Pagination check",
+              message: "Please verify pagination.",
+              modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
+              runtimeMode: "full-access",
+              interactionMode: "default",
+              createdAt: "2026-04-01T10:00:00.000Z",
+            },
+          ],
+        },
+        {
+          ...baseEventFields,
+          sequence: 12,
+          occurredAt: "2026-04-01T10:01:00.000Z",
+          aggregateKind: "thread",
+          aggregateId: ThreadId.make("thread-1"),
+          type: "thread.proposal-dismissed",
+          payload: {
+            sourceThreadId: ThreadId.make("thread-1"),
+            threadId: ThreadId.make("thread-new"),
+          },
+        },
+      );
+
+      expect(result.kind).toBe("updated");
+      if (result.kind === "updated") {
+        expect(result.thread.proposedThreads).toEqual([]);
+      }
+    });
+  });
+
   describe("thread.proposed-plan-upserted", () => {
     it("adds a proposed plan", () => {
       const result = applyThreadDetailEvent(baseThread, {

@@ -48,6 +48,7 @@ import {
   pickSharedServerSettings,
   supportsSharedSettingsSync,
 } from "@t3tools/client-runtime/state/shared-settings";
+import { useServerConfigs } from "../../state/entities";
 import { useThreadListV2Enabled } from "../threads/use-thread-list-v2-enabled";
 import {
   type AppUpdateCheckState,
@@ -541,10 +542,32 @@ function ConfiguredSettingsRouteScreen() {
 }
 
 function GeneralSettingsSection() {
+  const serverConfigs = useServerConfigs();
+  const updateSettings = useAtomCommand(serverEnvironment.updateSettings, {
+    reportFailure: false,
+  });
+  const connectedConfigs = useMemo(() => [...serverConfigs.entries()], [serverConfigs]);
+  const threadCreateMode =
+    connectedConfigs[0]?.[1].settings.threadCreateMode === "automatic" ? "automatic" : "manual";
   return (
     <SettingsSection title="General">
       <SettingsRow icon="folder" label="Project Grouping" target="SettingsProjectGrouping" />
       <AutoSettleSettingsRows />
+      {connectedConfigs.length > 0 ? (
+        <SettingsSwitchRow
+          icon="plus"
+          label="Automatically create agent threads"
+          value={threadCreateMode === "automatic"}
+          onValueChange={(automatic) => {
+            for (const [environmentId] of connectedConfigs) {
+              void updateSettings({
+                environmentId,
+                input: { patch: { threadCreateMode: automatic ? "automatic" : "manual" } },
+              });
+            }
+          }}
+        />
+      ) : null}
       <SettingsRow icon="chart.bar.xaxis" label="Usage" target="SettingsUsage" />
     </SettingsSection>
   );

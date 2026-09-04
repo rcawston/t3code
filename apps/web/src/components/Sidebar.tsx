@@ -175,6 +175,7 @@ import {
   type SnoozePreset,
 } from "./Sidebar.snooze";
 import { ProjectFavicon } from "./ProjectFavicon";
+import { ProposedThreadCard } from "./chat/ProposedThreadCard";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
 import { getTriggerDisplayModelLabel } from "./chat/providerIconUtils";
 import {
@@ -4106,6 +4107,21 @@ export default function Sidebar() {
                   }
                   for (const thread of activeThreads) {
                     items.push(renderThreadRow(thread, "active"));
+                  }
+                  const seenProposedThreadIds = new Set<string>();
+                  for (const thread of [...pinnedThreads, ...activeThreads]) {
+                    for (const proposal of thread.proposedThreads ?? []) {
+                      if (seenProposedThreadIds.has(proposal.threadId)) continue;
+                      seenProposedThreadIds.add(proposal.threadId);
+                      items.push(
+                        <li key={`proposed-${proposal.threadId}`} className="list-none px-2 py-1">
+                          <ProposedThreadCard
+                            environmentId={thread.environmentId}
+                            proposal={proposal}
+                          />
+                        </li>,
+                      );
+                    }
                   }
                   // Snoozed shelf: between the inbox and Settled — out of the
                   // way, never gone. The header always renders while anything

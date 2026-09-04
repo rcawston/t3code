@@ -294,6 +294,7 @@ import {
 import { environmentShell } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { createPageScrollController, type PageScrollKey } from "./chat/pageScrollController";
+import { ProposedThreadCard } from "./chat/ProposedThreadCard";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
 import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
@@ -7886,6 +7887,17 @@ export default function ChatView(props: ChatViewProps) {
                           activeProjectTitle={activeProject?.title ?? null}
                         />
                       </div>
+                    </div>
+                  ) : null}
+                  {activeThread && (activeThread.proposedThreads ?? []).length > 0 ? (
+                    <div className="mx-auto mb-2 flex w-full max-w-3xl flex-col gap-2">
+                      {(activeThread.proposedThreads ?? []).map((proposal) => (
+                        <ProposedThreadCard
+                          key={proposal.threadId}
+                          environmentId={activeThread.environmentId}
+                          proposal={proposal}
+                        />
+                      ))}
                     </div>
                   ) : null}
                   <div

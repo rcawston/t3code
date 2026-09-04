@@ -1,7 +1,8 @@
 /**
- * Migration runner with an inline loader.
+ * MigrationsLive - Core and fork migration runners
  *
- * Uses Migrator.make with fromRecord to define migrations inline.
+ * Uses Migrator.make with fromRecord to define migrations inline. Upstream migrations use the
+ * core ledger; fork-only migrations use a separate ledger so their numeric ids cannot collide.
  * All migrations are statically imported - no dynamic file system loading.
  *
  * `runMigrations` is called by the SQLite persistence layer at startup, so the
@@ -10,6 +11,8 @@
 
 import * as Migrator from "effect/unstable/sql/Migrator";
 import * as Effect from "effect/Effect";
+
+import { reconcileLegacyForkMigrationHistory, runForkMigrations } from "./ForkMigrations.ts";
 
 // Import all migrations statically
 import Migration0001 from "./Migrations/001_OrchestrationEvents.ts";
@@ -61,7 +64,7 @@ import Migration0046 from "./Migrations/046_RepairAutomaticSettlementTimestamps.
 import Migration0047 from "./Migrations/047_ProjectionProjectIcon.ts";
 
 /**
- * Migration loader with all migrations defined inline.
+ * Core migration loader with all upstream migrations defined inline.
  *
  * Key format: "{id}_{name}" where:
  * - id: numeric migration ID (determines execution order)
@@ -144,8 +147,9 @@ export interface RunMigrationsOptions {
 /**
  * Run all pending migrations.
  *
- * Creates the migrations tracking table (effect_sql_migrations) if it doesn't exist,
- * then runs any migrations with ID greater than the latest recorded migration.
+ * Reconciles legacy fork slots, runs pending upstream migrations in effect_sql_migrations, then
+ * runs pending fork migrations in their separate ledger. A bounded migration run used by tests
+ * runs only the requested upstream migrations.
  *
  * Returns array of [id, name] tuples for migrations that were run.
  *
@@ -154,10 +158,18 @@ export interface RunMigrationsOptions {
 export const runMigrations = Effect.fn("runMigrations")(function* ({
   toMigrationInclusive,
 }: RunMigrationsOptions = {}) {
+  const includeForkMigrations = toMigrationInclusive === undefined;
+  if (includeForkMigrations) {
+    yield* reconcileLegacyForkMigrationHistory();
+  }
+
   const executedMigrations = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
   const migrations = executedMigrations.map(([id, name]) => `${id}_${name}`);
   yield* migrations.length === 0
     ? Effect.logDebug("Database schema is current")
     : Effect.log("Migrations ran successfully").pipe(Effect.annotateLogs({ migrations }));
+  if (includeForkMigrations) {
+    yield* runForkMigrations();
+  }
   return executedMigrations;
 });

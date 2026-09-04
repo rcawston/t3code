@@ -1,11 +1,13 @@
 import type {
   OrchestrationCommand,
   OrchestrationProject,
+  OrchestrationProposedThread,
   OrchestrationReadModel,
   OrchestrationThread,
   ProjectId,
   ThreadId,
 } from "@t3tools/contracts";
+import { THREAD_COORDINATION_MAX_MESSAGE_CHARS } from "@t3tools/contracts";
 import { normalizeProjectPathForComparison } from "@t3tools/shared/path";
 import * as Effect from "effect/Effect";
 
@@ -147,6 +149,78 @@ export function requireThreadNotArchived(input: {
               `Thread '${input.threadId}' is already archived and cannot handle command '${input.command.type}'.`,
             ),
           ),
+    ),
+  );
+}
+
+export function findProposedThread(
+  readModel: OrchestrationReadModel,
+  threadId: ThreadId,
+):
+  | {
+      readonly source: OrchestrationThread;
+      readonly proposal: OrchestrationProposedThread;
+    }
+  | undefined {
+  for (const thread of readModel.threads) {
+    const proposal = (thread.proposedThreads ?? []).find((entry) => entry.threadId === threadId);
+    if (proposal !== undefined) {
+      return { source: thread, proposal };
+    }
+  }
+  return undefined;
+}
+
+export function requireCoordinationMessage(input: {
+  readonly commandType: OrchestrationCommand["type"];
+  readonly message: string;
+}): Effect.Effect<void, OrchestrationCommandInvariantError> {
+  if (input.message.trim().length === 0) {
+    return Effect.fail(invariantError(input.commandType, "Message text is empty."));
+  }
+  if (input.message.length > THREAD_COORDINATION_MAX_MESSAGE_CHARS) {
+    return Effect.fail(
+      invariantError(input.commandType, "Message text is larger than the coordination size limit."),
+    );
+  }
+  return Effect.void;
+}
+
+export function requireProposedThread(input: {
+  readonly readModel: OrchestrationReadModel;
+  readonly command: OrchestrationCommand;
+  readonly threadId: ThreadId;
+}): Effect.Effect<
+  {
+    readonly source: OrchestrationThread;
+    readonly proposal: OrchestrationProposedThread;
+  },
+  OrchestrationCommandInvariantError
+> {
+  const found = findProposedThread(input.readModel, input.threadId);
+  if (found) {
+    return Effect.succeed(found);
+  }
+  return Effect.fail(
+    invariantError(
+      input.command.type,
+      `Proposed thread '${input.threadId}' does not exist for command '${input.command.type}'.`,
+    ),
+  );
+}
+
+export function requireProposedThreadAbsent(input: {
+  readonly readModel: OrchestrationReadModel;
+  readonly command: OrchestrationCommand;
+  readonly threadId: ThreadId;
+}): Effect.Effect<void, OrchestrationCommandInvariantError> {
+  if (!findProposedThread(input.readModel, input.threadId)) {
+    return Effect.void;
+  }
+  return Effect.fail(
+    invariantError(
+      input.command.type,
+      `Proposed thread '${input.threadId}' already exists and cannot be created twice.`,
     ),
   );
 }

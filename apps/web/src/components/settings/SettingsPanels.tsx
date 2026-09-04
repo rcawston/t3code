@@ -574,6 +574,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin
         ? ["New worktrees start from origin"]
         : []),
+      ...(settings.threadCreateMode !== DEFAULT_UNIFIED_SETTINGS.threadCreateMode
+        ? ["Agent thread create"]
+        : []),
       ...(settings.addProjectBaseDirectory !== DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory
         ? ["Add project base directory"]
         : []),
@@ -613,6 +616,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.addProjectBaseDirectory,
       settings.defaultThreadEnvMode,
       settings.newWorktreesStartFromOrigin,
+      settings.threadCreateMode,
       settings.diffIgnoreWhitespace,
       settings.diffLayout,
       settings.proactivePanelsEnabled,
@@ -733,6 +737,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       providerHealthRefreshInterval: DEFAULT_UNIFIED_SETTINGS.providerHealthRefreshInterval,
       defaultThreadEnvMode: DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode,
       newWorktreesStartFromOrigin: DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin,
+      threadCreateMode: DEFAULT_UNIFIED_SETTINGS.threadCreateMode,
       addProjectBaseDirectory: DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory,
       confirmThreadArchive: DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive,
       confirmThreadDelete: DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete,
@@ -2594,6 +2599,47 @@ export function GeneralSettingsPanel() {
                 </SelectItem>
                 <SelectItem hideIndicator value="worktree">
                   New worktree
+                </SelectItem>
+              </SelectPopup>
+            </Select>
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("agent-thread-create")}
+          description="When an agent asks to start a sibling thread, either wait for you to confirm or start it immediately."
+          resetAction={
+            settings.threadCreateMode !== DEFAULT_UNIFIED_SETTINGS.threadCreateMode ? (
+              <SettingResetButton
+                label="agent thread create"
+                onClick={() =>
+                  updateSettings({
+                    threadCreateMode: DEFAULT_UNIFIED_SETTINGS.threadCreateMode,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.threadCreateMode}
+              onValueChange={(value) => {
+                if (value === "manual" || value === "automatic") {
+                  updateSettings({ threadCreateMode: value });
+                }
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-44" aria-label="Agent thread create">
+                <SelectValue>
+                  {settings.threadCreateMode === "automatic" ? "Automatic" : "Manual"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                <SelectItem hideIndicator value="manual">
+                  Manual
+                </SelectItem>
+                <SelectItem hideIndicator value="automatic">
+                  Automatic
                 </SelectItem>
               </SelectPopup>
             </Select>
