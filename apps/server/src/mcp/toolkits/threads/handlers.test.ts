@@ -244,6 +244,9 @@ const invocation: McpInvocationContext.McpInvocationScope = {
 const unusedQuery = {
   getArchivedShellSnapshot: () => Effect.die("unused"),
   getSnapshot: () => Effect.die("unused"),
+  getUserInputActivity: () => Effect.die("unused"),
+  getEventReplayStats: () => Effect.die("unused"),
+  getThreadRuntimeContext: () => Effect.die("unused"),
   getSnapshotSequence: () => Effect.die("unused"),
   getCounts: () => Effect.die("unused"),
   getActiveProjectByWorkspaceRoot: () => Effect.succeed(Option.none()),
@@ -295,6 +298,9 @@ const makeEngine = (dispatched: Array<OrchestrationCommand>) =>
         dispatched.push(command);
         return { sequence: 42 };
       }),
+    readThreadEvents: () => Stream.empty,
+    getThreadReplayStats: () => Effect.die("unused"),
+    subscribeDomainEvents: Effect.die("unused"),
     readEvents: () => Stream.empty,
     streamDomainEvents: Stream.empty,
     latestSequence: Effect.succeed(0),
@@ -595,6 +601,9 @@ it.effect("fails closed in manual mode when the proposal cannot be persisted", (
                 detail: "Proposed thread could not be persisted.",
               }),
             ),
+          readThreadEvents: () => Stream.empty,
+          getThreadReplayStats: () => Effect.die("unused"),
+          subscribeDomainEvents: Effect.die("unused"),
           readEvents: () => Stream.empty,
           streamDomainEvents: Stream.empty,
           latestSequence: Effect.succeed(0),

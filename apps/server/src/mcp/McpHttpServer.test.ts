@@ -298,6 +298,9 @@ const unusedSnapshotQuery = ProjectionSnapshotQuery.of({
   getSnapshot: () => Effect.die("unused"),
   getShellSnapshot: () => Effect.die("unused"),
   getArchivedShellSnapshot: () => Effect.die("unused"),
+  getUserInputActivity: () => Effect.die("unused"),
+  getEventReplayStats: () => Effect.die("unused"),
+  getThreadRuntimeContext: () => Effect.die("unused"),
   getSnapshotSequence: () => Effect.die("unused"),
   getCounts: () => Effect.die("unused"),
   getActiveProjectByWorkspaceRoot: () => Effect.succeed(Option.none()),
@@ -313,6 +316,9 @@ const unusedSnapshotQuery = ProjectionSnapshotQuery.of({
 
 const unusedEngine = OrchestrationEngineService.of({
   dispatch: () => Effect.die("unused"),
+  readThreadEvents: () => Stream.empty,
+  getThreadReplayStats: () => Effect.die("unused"),
+  subscribeDomainEvents: Effect.die("unused"),
   readEvents: () => Stream.empty,
   streamDomainEvents: Stream.empty,
   latestSequence: Effect.succeed(0),

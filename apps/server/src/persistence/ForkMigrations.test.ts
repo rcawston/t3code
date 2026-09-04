@@ -5,7 +5,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import ProjectionProposedThreads from "./ForkMigrations/001_ProjectionProposedThreads.ts";
 import { runMigrations } from "./Migrations.ts";
-import * as NodeSqliteClient from "./NodeSqliteClient.ts";
+import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 
 const legacySlots43And44Layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
@@ -41,6 +41,10 @@ legacySlots43And44Layer("fork migrations", (it) => {
       `;
       assert.deepStrictEqual(coreEntries, [
         { migration_id: 43, name: "ProjectionThreadsUnsettledAt" },
+        { migration_id: 44, name: "ClearAutomaticProjectModelDefaults" },
+        { migration_id: 45, name: "ProjectionProjectsAutoPull" },
+        { migration_id: 46, name: "RepairAutomaticSettlementTimestamps" },
+        { migration_id: 47, name: "ProjectionProjectIcon" },
       ]);
 
       const forkEntries = yield* sql<{
@@ -96,6 +100,10 @@ legacySlots41And44Layer("fork migrations from legacy slot 41", (it) => {
         { migration_id: 41, name: "AuthSessionClientConnection" },
         { migration_id: 42, name: "ProjectionThreadLinkedPullRequest" },
         { migration_id: 43, name: "ProjectionThreadsUnsettledAt" },
+        { migration_id: 44, name: "ClearAutomaticProjectModelDefaults" },
+        { migration_id: 45, name: "ProjectionProjectsAutoPull" },
+        { migration_id: 46, name: "RepairAutomaticSettlementTimestamps" },
+        { migration_id: 47, name: "ProjectionProjectIcon" },
       ]);
 
       const forkEntries = yield* sql<{
